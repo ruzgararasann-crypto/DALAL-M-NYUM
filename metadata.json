@@ -1,0 +1,6 @@
+{
+  "name": "Muhasebe",
+  "description": "Dal Alüminyum Aksesuar için modern, tam özellikli ve profesyonel cari hesap, fatura, stok ve sipariş takip yönetim paneli.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

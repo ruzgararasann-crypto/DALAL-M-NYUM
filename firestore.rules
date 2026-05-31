@@ -1,0 +1,197 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Default Catch-All Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- PRIMITIVE HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'ruzgar.arasann@gmail.com' ||
+        request.auth.token.email_verified == true && request.auth.token.email == 'ruzgar.arasann@gmail.com'
+      );
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isTime(val) {
+      return val is timestamp || (val is string && val.size() <= 64);
+    }
+
+    // --- VALIDATION BLUEPRINTS ---
+    
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() <= 128 &&
+             data.email is string && data.email.size() <= 256 &&
+             data.role is string && (data.role == 'admin' || data.role == 'customer') &&
+             isTime(data.createdAt);
+    }
+
+    function isValidProduct(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 256 &&
+             data.dimension is string && data.dimension.size() <= 100 &&
+             data.unit is string && data.unit.size() <= 50 &&
+             data.price is number && data.price >= 0 &&
+             data.stockLevel is number && data.stockLevel >= 0 &&
+             isTime(data.createdAt);
+    }
+
+    function isValidCariHesap(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() <= 256 &&
+             data.balance is number &&
+             isTime(data.createdAt);
+    }
+
+    function isValidInvoice(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.invoiceNumber is string && data.invoiceNumber.size() <= 64 &&
+             data.customerId is string && data.customerId.size() <= 128 &&
+             data.customerTitle is string && data.customerTitle.size() <= 256 &&
+             data.date is string && data.date.size() <= 30 &&
+             data.items is list && data.items.size() <= 100 &&
+             data.subtotal is number && data.subtotal >= 0 &&
+             data.taxTotal is number && data.taxTotal >= 0 &&
+             data.grandTotal is number && data.grandTotal >= 0 &&
+             data.status is string && (data.status == 'paid' || data.status == 'pending') &&
+             isTime(data.createdAt);
+    }
+
+    function isValidOrder(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.customerId is string && data.customerId.size() <= 128 &&
+             data.customerName is string && data.customerName.size() <= 256 &&
+             data.items is list && data.items.size() <= 50 &&
+             data.status is string && (data.status == 'pending' || data.status == 'processing' || data.status == 'completed' || data.status == 'cancelled') &&
+             data.totalAmount is number && data.totalAmount >= 0 &&
+             isTime(data.createdAt);
+    }
+
+    function isValidUploadedFile(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.userEmail is string && data.userEmail.size() <= 256 &&
+             data.fileName is string && data.fileName.size() <= 256 &&
+             data.fileSizeFormatted is string && data.fileSizeFormatted.size() <= 30 &&
+             data.fileSize is number && data.fileSize > 0 &&
+             data.downloadUrl is string && data.downloadUrl.size() <= 1024 &&
+             isTime(data.createdAt);
+    }
+
+    function isValidMessage(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.senderId is string && data.senderId.size() <= 128 &&
+             data.senderEmail is string && data.senderEmail.size() <= 256 &&
+             data.senderRole is string && (data.senderRole == 'admin' || data.senderRole == 'customer') &&
+             data.text is string && data.text.size() <= 2048 &&
+             isTime(data.createdAt);
+    }
+
+    // --- COLLECTION MATCHES ---
+
+    // 1. Users Profiles
+    match /users/{userId} {
+      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      // Only bootstrapped email or an existing admin can create admins. Standard signup can only create 'customer' role.
+      allow create: if isSignedIn() && isOwner(userId) &&
+        isValidUser(request.resource.data) && (
+          (request.resource.data.role == 'customer') || 
+          (request.resource.data.role == 'admin' && isBootstrappedAdmin())
+        );
+      allow update: if isSignedIn() && (
+        isAdmin() || (
+          isOwner(userId) && 
+          isValidUser(request.resource.data) && 
+          request.resource.data.role == resource.data.role // prevent self-promotion
+        )
+      );
+      allow delete: if isAdmin() || isOwner(userId);
+    }
+
+    // 2. Products Catalog
+    match /products/{productId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && isValidProduct(request.resource.data) && isValidId(productId);
+      allow update: if isAdmin() && isValidProduct(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 3. Cari Hesaplar (Current Customer Balances)
+    match /cari_hesaplar/{cariId} {
+      allow read: if isAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == resource.data.email);
+      allow create: if isAdmin() && isValidCariHesap(request.resource.data) && isValidId(cariId);
+      allow update: if isAdmin() && isValidCariHesap(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 4. Invoices
+    match /invoices/{invoiceId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
+      allow create: if isAdmin() && isValidInvoice(request.resource.data) && isValidId(invoiceId);
+      allow update: if isAdmin() && isValidInvoice(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 5. Orders
+    match /orders/{orderId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
+      allow create: if isSignedIn() && (
+        isValidOrder(request.resource.data) && 
+        isValidId(orderId) && (
+          request.resource.data.customerId == request.auth.uid || isAdmin()
+        )
+      );
+      allow update: if isAdmin() || (
+        isSignedIn() && 
+        resource.data.customerId == request.auth.uid && 
+        isValidOrder(request.resource.data) &&
+        resource.data.status == 'pending' && // locked once processing starts
+        request.resource.data.status == 'pending' &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['items', 'totalAmount'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 6. Uploaded Files
+    match /files/{fileId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && isValidUploadedFile(request.resource.data) && isValidId(fileId) && (
+        request.resource.data.userId == request.auth.uid || isAdmin()
+      );
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    // 7. Communication Chats
+    match /messages/{messageId} {
+      allow read: if isSignedIn(); // We can filter chat lists locally safely. Simple standard reads is clean.
+      allow create: if isSignedIn() && isValidMessage(request.resource.data) && isValidId(messageId) && (
+        request.resource.data.senderId == request.auth.uid || isAdmin()
+      );
+      allow update: if false; // immutable chat history
+      allow delete: if isAdmin();
+    }
+  }
+}

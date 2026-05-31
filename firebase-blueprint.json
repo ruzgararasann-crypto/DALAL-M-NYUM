@@ -1,0 +1,148 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Account details for a registered user including their role (admin vs customer).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "customer"] },
+        "companyName": { "type": "string" },
+        "phone": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "A catalog product with dimensions, unit sets, colors, and stock quantities.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "dimension": { "type": "string" },
+        "unit": { "type": "string" },
+        "colors": { "type": "array" },
+        "price": { "type": "number" },
+        "stockLevel": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "dimension", "unit", "price", "stockLevel", "createdAt"]
+    },
+    "CariHesap": {
+      "title": "CariHesap",
+      "description": "Current accounts for customers to track details and outstanding balances.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "taxNo": { "type": "string" },
+        "taxOffice": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "balance": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "balance", "createdAt"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Invoices sent to customers, including itemized lines.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerTitle": { "type": "string" },
+        "date": { "type": "string" },
+        "items": { "type": "array" },
+        "taxRate": { "type": "number" },
+        "subtotal": { "type": "number" },
+        "taxTotal": { "type": "number" },
+        "grandTotal": { "type": "number" },
+        "status": { "type": "string", "enum": ["paid", "pending"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "invoiceNumber", "customerId", "customerTitle", "date", "items", "subtotal", "taxTotal", "grandTotal", "status", "createdAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer orders made from product catalog.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "items": { "type": "array" },
+        "status": { "type": "string", "enum": ["pending", "processing", "completed", "cancelled"] },
+        "totalAmount": { "type": "number" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "customerId", "customerName", "items", "status", "totalAmount", "createdAt"]
+    },
+    "UploadedFile": {
+      "title": "UploadedFile",
+      "description": "Storage metadata for files uploaded by customers (design files, drawings, etc.).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "fileName": { "type": "string" },
+        "fileSizeFormatted": { "type": "string" },
+        "fileSize": { "type": "number" },
+        "downloadUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "userEmail", "fileName", "fileSizeFormatted", "fileSize", "downloadUrl", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Customer-admin communication messages.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderEmail": { "type": "string" },
+        "senderRole": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "senderId", "senderEmail", "senderRole", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Stores user profiles with roles (admin/customer) linked by Firebase Authentication ID."
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "The inventory catalog of Dal Alüminyum Aksesuar products."
+    },
+    "/cari_hesaplar/{cariId}": {
+      "schema": "CariHesap",
+      "description": "Cari hesap list (current customer accounts with balance history)."
+    },
+    "/invoices/{invoiceId}": {
+      "schema": "Invoice",
+      "description": "Invoices produced for current accounts, which can be printed or saved."
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Orders made by users to the administration."
+    },
+    "/files/{fileId}": {
+      "schema": "UploadedFile",
+      "description": "User uploaded blueprint files / product attachments."
+    },
+    "/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Admin and customer direct chat support logs."
+    }
+  }
+}
